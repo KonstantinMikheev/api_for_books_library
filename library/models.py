@@ -2,6 +2,7 @@ from django.db import models
 from django.db.models import ForeignKey
 
 from config import settings
+from users.models import User
 
 NULLABLE = {"blank": True, "null": True}
 
@@ -57,12 +58,12 @@ class Book(models.Model):
 
 class Rental(models.Model):
     """Модель создания отметки о выдаче книги"""
-    reader = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="Читатель", on_delete=models.CASCADE)
+    reader = models.ForeignKey(User, verbose_name="Читатель", on_delete=models.CASCADE)
     book = models.ForeignKey(Book, verbose_name="Книга выдана", on_delete=models.CASCADE)
     rental_date = models.DateTimeField(auto_now_add=True, verbose_name="Дата выдачи")
     return_date = models.DateTimeField(verbose_name="Дата возврата", **NULLABLE)
     is_returned = models.BooleanField(default=False, verbose_name="Возвращена?")
-    deadline = models.DateTimeField(help_text="Срок возврата книги")
+    deadline = models.DateTimeField(help_text="Срок возврата книги", **NULLABLE)
 
     def __str__(self):
         return f"{self.reader} - {self.book}"

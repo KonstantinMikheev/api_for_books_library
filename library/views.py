@@ -1,9 +1,10 @@
 from django.utils.timezone import now
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from django.shortcuts import render, get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
+from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
@@ -22,14 +23,14 @@ class BookViewSet(viewsets.ModelViewSet):
     pagination_class = Paginator
 
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    search_fields = ('title', 'authors', 'genre', 'description',)
+    search_fields = ('title', 'genre', 'description',)
     ordering_fields = ('title', 'genre', 'is_available',)
     filterset_fields = ('title', 'genre', 'is_available',)
 
     def get_permissions(self):
         """Возвращает список разрешений в зависимости от типа пользователя."""
         if self.action in ['create', 'update', 'destroy']:
-            self.permission_classes = (IsAdminUser | IsLibrarian)
+            self.permission_classes = (IsAdminUser | IsLibrarian,)
         elif self.action in ['retrieve', 'list',]:
             self.permission_classes = (AllowAny,)
         return super().get_permissions()
@@ -65,22 +66,21 @@ class RentalViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         """Возвращает список разрешений в зависимости от типа пользователя."""
-        if self.action in ['create', 'update', 'destroy']:
-            self.permission_classes = (IsAdminUser | IsLibrarian)
-        elif self.action in ['retrieve', 'list', ]:
-            self.permission_classes = (AllowAny,)
+        if self.action in ['update', 'destroy']:
+            self.permission_classes = (IsAdminUser | IsLibrarian,)
+        elif self.action in ['create', 'retrieve', 'list', ]:
+            self.permission_classes = (IsAuthenticated,)
         return super().get_permissions()
 
     def perform_create(self, serializer):
-        """Делает проверку наличия свободных книг."""
-        serializer.save(rental_date=now())
-        book = get_object_or_404(Book, pk=serializer.validated_data['book'])
-        if book.is_available:
-            book.is_available = False
-            book.deadline = now() + timedelta(days=30)
-            book.save()
-        else:
-            raise ValidationError('Книга уже на руках.')
+        """Делает проверку выдачи книги."""
+        book = get_object_or_404(Book, pk=serializer.validated_data['book'].pk)
+        if not book.is_available:
+            raise ValidationError('Книга недоступна для выдачи.')
+        book.is_available = False
+        book.save()
+        serializer.save(rental_date=now(), deadline=now() + timedelta(days=30))
+
 
     def perform_update(self, serializer):
         """Делает проверку возвращения книги."""
@@ -99,7 +99,28 @@ class RentalViewSet(viewsets.ModelViewSet):
         instance.delete()
 
     def list(self, request, *args, **kwargs):
+        """Обрабатывает запросы для получения списка арендованных книг."""
+
+        queryset = self.get_queryset()
         if IsLibrarian().has_permission(self.request, self):
-            return Rental.objects.all()
-        else:
-            return Rental.objects.filter(user=self.request.user)
+            queryset = queryset.all()
+        elif self.request.user.is_authenticated:
+            queryset = queryset.filter(user=self.request.user)
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Обрабатывает запросы для получения информации об аренде книги."""
+
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        response = {
+            'pk': serializer.data.get('pk'),
+            'book': serializer.data.get('book'),
+            'deadline': serializer.data.get('deadline'),
+            'status': 'Срок просрочен' if datetime.strptime(serializer.data.get('deadline'),
+                                                                     '%Y-%m-%dT%H:%M:%S.%f%z') < now() else (
+                'Аренда закрыта' if instance.is_returned else 'В аренде'),
+        }
+        return Response(response)
