@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from library.models import Book, Author, Genre, Rental
 from library.paginators import Paginator
 from library.serializers import BookSerializer, AuthorSerializer, GenreSerializer, RentalSerializer
+from users.models import User
 from users.permissions import IsLibrarian
 
 
@@ -66,20 +67,25 @@ class RentalViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         """Возвращает список разрешений в зависимости от типа пользователя."""
-        if self.action in ['update', 'destroy']:
+        if self.action in ['update', 'destroy', 'partial_update']:
             self.permission_classes = (IsAdminUser | IsLibrarian,)
         elif self.action in ['create', 'retrieve', 'list', ]:
             self.permission_classes = (IsAuthenticated,)
         return super().get_permissions()
 
+
     def perform_create(self, serializer):
         """Делает проверку выдачи книги."""
         book = get_object_or_404(Book, pk=serializer.validated_data['book'].pk)
+        reader = get_object_or_404(User, pk=serializer.validated_data['reader'].pk)
+
         if not book.is_available:
-            raise ValidationError('Книга недоступна для выдачи.')
-        book.is_available = False
-        book.save()
-        serializer.save(rental_date=now(), deadline=now() + timedelta(days=30))
+            raise ValidationError('Книга уже выдана.')
+        else:
+            if reader:
+                book.is_available = False
+                book.save()
+                serializer.save(rental_date=now(), deadline=now() + timedelta(days=30), reader=reader, book=book)
 
 
     def perform_update(self, serializer):
@@ -102,7 +108,7 @@ class RentalViewSet(viewsets.ModelViewSet):
         """Обрабатывает запросы для получения списка арендованных книг."""
 
         queryset = self.get_queryset()
-        if IsLibrarian().has_permission(self.request, self):
+        if IsLibrarian().has_permission(self.request, self) or IsAdminUser().has_permission(self.request, self):
             queryset = queryset.all()
         elif self.request.user.is_authenticated:
             queryset = queryset.filter(user=self.request.user)
@@ -118,6 +124,7 @@ class RentalViewSet(viewsets.ModelViewSet):
         response = {
             'pk': serializer.data.get('pk'),
             'book': serializer.data.get('book'),
+            'reader': serializer.data.get('reader'),
             'deadline': serializer.data.get('deadline'),
             'status': 'Срок просрочен' if datetime.strptime(serializer.data.get('deadline'),
                                                                      '%Y-%m-%dT%H:%M:%S.%f%z') < now() else (

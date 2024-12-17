@@ -32,8 +32,8 @@ class BookSerializer(ModelSerializer):
 
 
 class RentalSerializer(ModelSerializer):
-    reader = UserSerializer(read_only=True)
-    book = BookSerializer(read_only=True)
+    reader = UserSerializer
+    book = BookSerializer
 
     class Meta:
         model = Rental
