@@ -19,7 +19,6 @@ class GenreSerializer(ModelSerializer):
 
 class BookSerializer(ModelSerializer):
 
-
     class Meta:
         model = Book
         fields = (

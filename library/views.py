@@ -30,7 +30,7 @@ class BookViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         """Возвращает список разрешений в зависимости от типа пользователя."""
-        if self.action in ['create', 'update', 'destroy']:
+        if self.action in ['create', 'update', 'destroy', 'partial_update']:
             self.permission_classes = (IsAdminUser | IsLibrarian,)
         elif self.action in ['retrieve', 'list',]:
             self.permission_classes = (AllowAny,)
