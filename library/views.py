@@ -127,7 +127,7 @@ class RentalViewSet(viewsets.ModelViewSet):
             'reader': serializer.data.get('reader'),
             'deadline': serializer.data.get('deadline'),
             'status': 'Срок просрочен' if datetime.strptime(serializer.data.get('deadline'),
-                                                                     '%Y-%m-%dT%H:%M:%S.%f%z') < now() else (
+                                                                     '%Y-%m-%dT%H:%M:%S%z') < now() else (
                 'Аренда закрыта' if instance.is_returned else 'В аренде'),
         }
         return Response(response)

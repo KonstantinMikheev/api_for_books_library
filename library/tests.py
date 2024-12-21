@@ -277,15 +277,17 @@ class BookTestCase(APITestCase):
                   'results': [{'pk': 6, 'title': 'Book1', 'genre': 5, 'authors': [19], 'year_of_publication': None}]}
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(data, result)
+        self.assertEqual(len(response.data.get('results')), 1)
 
     # def test_update_book(self):
     #     """Тест изменения книги"""
     #     self.client.force_authenticate(user=self.staff_user)
     #     url = reverse('library:books-detail', kwargs={'pk': self.book.pk})
-    #     data = {'title': 'Book2'}
+    #     data = {'is_returned': True}
     #     response = self.client.put(url, data)
     #     self.assertEqual(response.status_code, status.HTTP_200_OK)
-    #     self.assertEqual(Book.objects.get(pk=self.book.pk).title, 'Book2')
+    #     self.assertEqual(response.data.get('results')['is_returned'], True)
+
 
 
 class RentalTestCase(APITestCase):
@@ -329,21 +331,23 @@ class RentalTestCase(APITestCase):
     # def test_update_rent_book(self):
     #     """Тест изменения информации об аренде книги"""
     #     self.client.force_authenticate(user=self.staff_user)
-    #     rental = Rental.objects.create(book=self.book, reader=self.usual_user)
+    #     rental = Rental.objects.create(book=self.book, reader=self.usual_user, deadline='2025-01-20T14:12:06')
     #     url = reverse('library:rent-detail', kwargs={'pk': rental.pk})
-    #     data = {'is_returned': True}
+    #     data = None
     #     response = self.client.put(url, data)
+    #     print(response.data)
     #     self.assertEqual(response.status_code, status.HTTP_200_OK)
     #     self.assertEqual(Rental.objects.get(pk=rental.pk).is_returned, True)
 
-    # def test_retrieve_rent_book(self):
-    #     """Тест получения информации об аренде книги"""
-    #     self.client.force_authenticate(user=self.staff_user)
-    #     rental = Rental.objects.create(book=self.book, reader=self.usual_user)
-    #     url = reverse('library:rent-detail', kwargs={'pk': rental.pk})
-    #     response = self.client.get(url)
-    #     self.assertEqual(response.status_code, status.HTTP_200_OK)
-    #     # self.assertEqual(response.data['book']['title'], self.book.title)
+    def test_retrieve_rent_book(self):
+        """Тест получения информации об аренде книги"""
+        self.client.force_authenticate(user=self.staff_user)
+        rental = Rental.objects.create(book=self.book, reader=self.usual_user, deadline='2025-01-20T14:12:06')
+        url = reverse('library:rent-detail', kwargs={'pk': rental.pk})
+        response = self.client.get(url)
+        print(response.data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['book'], self.book.pk)
 
     def test_delete_rent_book(self):
         """Тест удаления аренды книги"""
@@ -354,18 +358,16 @@ class RentalTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertEqual(Rental.objects.count(), 0)
 
-    # def test_list_rent_book(self):
-    #     """Тест получения списка аренд книг"""
-    #     self.client.force_authenticate(user=self.staff_user)
-    #     rental1 = Rental.objects.create(book=self.book, reader=self.usual_user, rental_date=now())
-    #     url = reverse('library:rent-list')
-    #     response = self.client.get(url)
-    #     data = response.json()
-    #     print("Hello")
-    #     print(response.json())
-    #     result = {'count': 1, 'next': None, 'previous': None, 'results': [
-    #         {'pk': 4, 'reader': 68, 'book': 13, 'rental_date': datetime.now(), 'is_returned': False,
-    #          'deadline': None, 'return_date': None}]}
-    #     self.assertEqual(response.status_code, status.HTTP_200_OK)
-    #     self.assertEqual(data, result)
+    def test_list_rentals(self):
+        """Тест получения списка аренд книг"""
+        self.client.force_authenticate(user=self.staff_user)
+        rental1 = Rental.objects.create(book=self.book, reader=self.usual_user, rental_date=now())
+        url = reverse('library:rent-list')
+        response = self.client.get(url)
+        data = response.json()
+        result = {'count': 1, 'next': None, 'previous': None, 'results': [
+            {'pk': 4, 'reader': 68, 'book': 13, 'rental_date': datetime.now(), 'is_returned': False,
+             'deadline': None, 'return_date': None}]}
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data.get('results')), 1)
 
